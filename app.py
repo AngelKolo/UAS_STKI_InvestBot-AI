@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-InvestBot AI - Streamlit Version
+InvestBot AI - Streamlit Version with Groq LLM
 UAS SISTEM TEMU KEMBALI INFORMASI (STKI) GANJIL 2025/2026
 
 Nama   : Angelica Widyastuti Kolo
@@ -14,9 +14,17 @@ import numpy as np
 import re
 import math
 import nltk
+import os
 from typing import List
 from collections import Counter
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+
+# Try import Groq (optional)
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ImportError:
+    HAS_GROQ = False
 
 # ================================================================================
 # CONFIGURATION
@@ -237,60 +245,88 @@ class SentimentAnalyzer:
             return "Netral", "sentiment-neutral"
 
 # ================================================================================
-# SMART ANSWER GENERATOR (QUERY-AWARE)
+# LLM ANSWER GENERATOR (GROQ + FALLBACK)
 # ================================================================================
-class SmartAnswerGenerator:
-    """Generate query-aware answers using intelligent sentence selection"""
+class LLMAnswerGenerator:
+    """Generate natural answers using Groq LLM with extractive fallback"""
     
     def __init__(self):
         self.preprocessor = TextPreprocessor()
+        self.use_llm = False
+        self.client = None
+        
+        # Try to initialize Groq
+        if HAS_GROQ:
+            try:
+                # Try to get API key from Streamlit secrets or environment
+                api_key = None
+                if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+                    api_key = st.secrets['GROQ_API_KEY']
+                elif 'GROQ_API_KEY' in os.environ:
+                    api_key = os.environ['GROQ_API_KEY']
+                
+                if api_key:
+                    self.client = Groq(api_key=api_key)
+                    self.use_llm = True
+                    print("✅ Groq LLM initialized successfully!")
+            except Exception as e:
+                print(f"⚠️ Groq initialization failed: {e}")
     
     def generate_answer(self, context: str, query: str, category: str) -> str:
-        # Split context into sentences
+        # Try LLM first if available
+        if self.use_llm and self.client:
+            try:
+                prompt = f"""Kamu adalah asisten investasi yang membantu edukasi pengguna. Berdasarkan konteks berikut, jawab pertanyaan dengan singkat, jelas, dan informatif (maksimal 4 kalimat) dalam Bahasa Indonesia.
+
+Konteks: {context[:1500]}
+
+Pertanyaan: {query}
+
+Jawaban (singkat dan jelas):"""
+                
+                response = self.client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=250,
+                    top_p=0.9
+                )
+                
+                answer = response.choices[0].message.content.strip()
+                return answer
+            
+            except Exception as e:
+                print(f"⚠️ LLM error: {e}, using fallback method")
+        
+        # Fallback: Extractive method (query-aware)
         sentences = re.split(r'(?<=[.!?])\s+', context)
         if len(sentences) == 0:
             return "Maaf, tidak dapat memproses konteks dokumen."
         
-        # Preprocess query untuk mendapatkan keywords
         query_tokens = set(self.preprocessor.preprocess(query))
-        
         if not query_tokens:
-            # Fallback jika query kosong setelah preprocessing
             return ". ".join(sentences[:3]) + "."
         
-        # Score setiap kalimat berdasarkan relevansi dengan query
+        # Score sentences by relevance to query
         scored_sentences = []
         for sent in sentences:
-            if len(sent.strip()) < 20:  # Skip kalimat terlalu pendek
+            if len(sent.strip()) < 20:
                 continue
             sent_tokens = set(self.preprocessor.preprocess(sent))
-            # Hitung overlap antara query dan sentence (Jaccard similarity)
             overlap = len(query_tokens & sent_tokens)
             jaccard = overlap / len(query_tokens | sent_tokens) if len(query_tokens | sent_tokens) > 0 else 0
             scored_sentences.append((sent, jaccard, overlap))
         
-        # Sort by relevance score (descending)
         scored_sentences.sort(key=lambda x: (x[2], x[1]), reverse=True)
         
-        # Ambil top 3-4 kalimat paling relevan
+        # Take top 3-4 most relevant sentences
         n_sentences = min(4, len(scored_sentences))
-        top_sentences = []
+        top_sentences = [s[0] for i, s in enumerate(scored_sentences[:n_sentences]) if s[2] > 0]
         
-        for i in range(n_sentences):
-            if i < len(scored_sentences):
-                sent, jaccard, overlap = scored_sentences[i]
-                # Hanya ambil kalimat dengan minimal overlap 1 kata
-                if overlap > 0:
-                    top_sentences.append(sent)
-        
-        # Jika tidak ada yang relevan sama sekali, ambil awal dokumen
         if not top_sentences:
             top_sentences = [s for s in sentences[:4] if len(s.strip()) > 20]
         
-        # Gabungkan dengan natural flow
         answer = " ".join(top_sentences)
-        
-        # Pastikan ada titik di akhir
         if answer and not answer.endswith(('.', '!', '?')):
             answer += '.'
         
@@ -330,14 +366,20 @@ def load_system():
         except Exception as e:
             sentiment_status = f"⚠️ Lexicon-based Sentiment (error: {str(e)[:50]})"
         
-        # Initialize answer generator
-        answer_generator = SmartAnswerGenerator()
+        # Initialize answer generator with LLM
+        answer_generator = LLMAnswerGenerator()
         
-        return df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, None, sentiment_status
+        # Check LLM status
+        if answer_generator.use_llm:
+            llm_status = "✅ Groq LLM Active"
+        else:
+            llm_status = "⚠️ Extractive Mode (Groq API key not found)"
+        
+        return df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, None, sentiment_status, llm_status
     
     except Exception as e:
         st.error(f"Error loading system: {str(e)}")
-        return None, None, None, None, None, None, str(e), "Error"
+        return None, None, None, None, None, None, str(e), "Error", "Error"
 
 # ================================================================================
 # MAIN CHATBOT FUNCTION
@@ -373,7 +415,7 @@ def invest_bot_response(query, df, preprocessor, tfidf, X_matrix, sentiment_tool
         # 3. Sentiment Analysis
         sentiment, sentiment_class = sentiment_tool.analyze(query)
         
-        # 4. Generate Answer (Smart query-aware)
+        # 4. Generate Answer (LLM or extractive)
         answer = answer_generator.generate_answer(context, query, source)
         
         return answer, sentiment, sentiment_class, f"{source} (Doc ID: {doc_id})", f"{similarity_score:.2f}"
@@ -387,18 +429,24 @@ def invest_bot_response(query, df, preprocessor, tfidf, X_matrix, sentiment_tool
 def main():
     # Header
     st.markdown('<div class="main-header">💰 InvestBot AI</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Asisten Cerdas Edukasi Investasi - RAG System dengan Sentiment Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Asisten Cerdas Edukasi Investasi - RAG System dengan AI Generator</div>', unsafe_allow_html=True)
     
     # Load system
     with st.spinner('🔄 Memuat sistem... Mohon tunggu'):
-        df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, error, sentiment_status = load_system()
+        result = load_system()
+        if len(result) == 9:
+            df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, error, sentiment_status, llm_status = result
+        else:
+            # Fallback jika ada error
+            st.error("❌ Gagal memuat sistem")
+            return
     
     if error:
         st.error(f"❌ Gagal memuat sistem: {error}")
         st.info("💡 Pastikan file 'classified_documents.csv' ada di direktori yang sama dengan app.py")
         return
     
-    st.success(f"✅ Sistem siap! • {sentiment_status}")
+    st.success(f"✅ Sistem siap! • {sentiment_status} • {llm_status}")
     
     # Sidebar
     with st.sidebar:
@@ -416,10 +464,11 @@ def main():
         - ✅ RAG System (TF-IDF)
         - ✅ K-NN Sentiment Classifier
         - ✅ Smart Retrieval
-        - ✅ Query-Aware Answers
+        - ✅ AI Answer Generation
         
-        **Sentiment Model:**
-        {sentiment_status}
+        **Models:**
+        - {sentiment_status}
+        - {llm_status}
         """)
         
         st.markdown("---")
@@ -441,6 +490,10 @@ def main():
         st.caption("**Mahasiswa:**")
         st.caption("Angelica Widyastuti Kolo")
         st.caption("A11.2021.13212")
+        
+        st.markdown("---")
+        if not answer_generator.use_llm:
+            st.info("💡 **Tips:** Tambahkan Groq API key di Streamlit Secrets untuk jawaban lebih natural!")
     
     # Main Content
     col1, col2 = st.columns([1, 1])
@@ -489,13 +542,6 @@ def main():
             with col_meta3:
                 st.markdown(f"**🎯 Relevansi:**")
                 st.text(similarity)
-            
-            # DEBUG INFO (Optional - uncomment untuk debugging)
-            with st.expander("🔍 Debug Info (Untuk Testing)", expanded=False):
-                st.write(f"**Query Tokens:** {preprocessor.preprocess(query)[:10]}")
-                st.write(f"**Document Length:** {len(context)} chars")
-                st.write(f"**Source Category:** {source}")
-                st.write(f"**Answer Length:** {len(answer)} chars")
         
         elif submit and not query:
             st.warning("⚠️ Silakan masukkan pertanyaan terlebih dahulu.")
