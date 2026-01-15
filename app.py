@@ -155,8 +155,6 @@ class KNNSentimentClassifier:
         self.k = k
         self.X_train = None
         self.y_train = None
-        self.preprocessor = None
-        self.tfidf = None
 
     def fit(self, X, y):
         self.X_train = X
@@ -237,26 +235,6 @@ class SentimentAnalyzer:
             return "Negatif", "sentiment-negative"
         else:
             return "Netral", "sentiment-neutral"
-
-# ================================================================================
-# EXTRACTIVE SUMMARIZATION
-# ================================================================================
-class ExtractiveSummarizer:
-    def summarize(self, text, n_sentences=3):
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        if len(sentences) <= n_sentences:
-            return text
-
-        words = text.lower().split()
-        word_freq = Counter(words)
-
-        sent_scores = []
-        for sent in sentences:
-            score = sum(word_freq.get(w.lower(), 0) for w in sent.split())
-            sent_scores.append(score)
-
-        top_indices = np.argsort(sent_scores)[-n_sentences:]
-        return " ".join([sentences[i] for i in sorted(top_indices)])
 
 # ================================================================================
 # SMART ANSWER GENERATOR (QUERY-AWARE)
@@ -344,7 +322,7 @@ def load_system():
             sentiment_status = f"⚠️ Lexicon-based Sentiment (error: {str(e)[:50]})"
         
         # Initialize answer generator
-        answer_generator = RuleBasedAnswerGenerator()
+        answer_generator = SmartAnswerGenerator()
         
         return df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, None, sentiment_status
     
@@ -386,7 +364,7 @@ def invest_bot_response(query, df, preprocessor, tfidf, X_matrix, sentiment_tool
         # 3. Sentiment Analysis
         sentiment, sentiment_class = sentiment_tool.analyze(query)
         
-        # 4. Generate Answer (Rule-based, no LLM)
+        # 4. Generate Answer (Smart query-aware)
         answer = answer_generator.generate_answer(context, query, source)
         
         return answer, sentiment, sentiment_class, f"{source} (Doc ID: {doc_id})", f"{similarity_score:.2f}"
@@ -429,7 +407,7 @@ def main():
         - ✅ RAG System (TF-IDF)
         - ✅ K-NN Sentiment Classifier
         - ✅ Smart Retrieval
-        - ✅ Auto Summarization
+        - ✅ Query-Aware Answers
         
         **Sentiment Model:**
         {sentiment_status}
