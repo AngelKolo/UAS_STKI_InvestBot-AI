@@ -31,7 +31,6 @@ except ImportError:
 # ================================================================================
 st.set_page_config(
     page_title="InvestBot AI",
-    page_icon="💰",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -268,9 +267,9 @@ class LLMAnswerGenerator:
                 if api_key:
                     self.client = Groq(api_key=api_key)
                     self.use_llm = True
-                    print("✅ Groq LLM initialized successfully!")
+                    print("Groq LLM initialized successfully!")
             except Exception as e:
-                print(f"⚠️ Groq initialization failed: {e}")
+                print(f"Groq initialization failed: {e}")
     
     def generate_answer(self, context: str, query: str, category: str) -> str:
         # Try LLM first if available
@@ -296,7 +295,7 @@ Jawaban (singkat dan jelas):"""
                 return answer
             
             except Exception as e:
-                print(f"⚠️ LLM error: {e}, using fallback method")
+                print(f"LLM error: {e}, using fallback method")
         
         # Fallback: Extractive method (query-aware)
         sentences = re.split(r'(?<=[.!?])\s+', context)
@@ -358,22 +357,22 @@ def load_system():
         try:
             df_sentiment = pd.read_csv('sentiment_opinions.csv')
             if sentiment_tool.train_from_dataset(df_sentiment):
-                sentiment_status = f"✅ K-NN Sentiment (trained on {len(df_sentiment)} samples)"
+                sentiment_status = f"K-NN Sentiment (trained on {len(df_sentiment)} samples)"
             else:
-                sentiment_status = "⚠️ Lexicon-based Sentiment (fallback)"
+                sentiment_status = "Lexicon-based Sentiment (fallback)"
         except FileNotFoundError:
-            sentiment_status = "⚠️ Lexicon-based Sentiment (sentiment_opinions.csv not found)"
+            sentiment_status = "Lexicon-based Sentiment (sentiment_opinions.csv not found)"
         except Exception as e:
-            sentiment_status = f"⚠️ Lexicon-based Sentiment (error: {str(e)[:50]})"
+            sentiment_status = f"Lexicon-based Sentiment (error: {str(e)[:50]})"
         
         # Initialize answer generator with LLM
         answer_generator = LLMAnswerGenerator()
         
         # Check LLM status
         if answer_generator.use_llm:
-            llm_status = "✅ Groq LLM Active"
+            llm_status = "Groq LLM Active"
         else:
-            llm_status = "⚠️ Extractive Mode (Groq API key not found)"
+            llm_status = "Extractive Mode (Groq API key not found)"
         
         return df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, None, sentiment_status, llm_status
     
@@ -428,43 +427,43 @@ def invest_bot_response(query, df, preprocessor, tfidf, X_matrix, sentiment_tool
 # ================================================================================
 def main():
     # Header
-    st.markdown('<div class="main-header">💰 InvestBot AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">InvestBot AI</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">Asisten Cerdas Edukasi Investasi - RAG System dengan AI Generator</div>', unsafe_allow_html=True)
     
     # Load system
-    with st.spinner('🔄 Memuat sistem... Mohon tunggu'):
+    with st.spinner('Memuat sistem... Mohon tunggu'):
         result = load_system()
         if len(result) == 9:
             df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator, error, sentiment_status, llm_status = result
         else:
             # Fallback jika ada error
-            st.error("❌ Gagal memuat sistem")
+            st.error("Gagal memuat sistem")
             return
     
     if error:
-        st.error(f"❌ Gagal memuat sistem: {error}")
-        st.info("💡 Pastikan file 'classified_documents.csv' ada di direktori yang sama dengan app.py")
+        st.error(f"Gagal memuat sistem: {error}")
+        st.info("Pastikan file 'classified_documents.csv' ada di direktori yang sama dengan app.py")
         return
     
-    st.success(f"✅ Sistem siap! • {sentiment_status} • {llm_status}")
+    st.success(f"Sistem siap! • {sentiment_status} • {llm_status}")
     
     # Sidebar
     with st.sidebar:
-        st.header("ℹ️ Informasi")
+        st.header("Informasi")
         st.markdown(f"""
         **Dataset:** {len(df)} dokumen  
         **Kategori:**
-        - 📈 Saham
-        - 💎 Cryptocurrency
-        - 🥇 Emas
-        - 📊 Reksa Dana
-        - 🏠 Properti
+        - Saham
+        - Cryptocurrency
+        - Emas
+        - Reksa Dana
+        - Obligasi
         
         **Fitur:**
-        - ✅ RAG System (TF-IDF)
-        - ✅ K-NN Sentiment Classifier
-        - ✅ Smart Retrieval
-        - ✅ AI Answer Generation
+        - RAG System (TF-IDF)
+        - K-NN Sentiment Classifier
+        - Smart Retrieval
+        - AI Answer Generation
         
         **Models:**
         - {sentiment_status}
@@ -493,13 +492,13 @@ def main():
         
         st.markdown("---")
         if not answer_generator.use_llm:
-            st.info("💡 **Tips:** Tambahkan Groq API key di Streamlit Secrets untuk jawaban lebih natural!")
+            st.info("**Tips:** Tambahkan Groq API key di Streamlit Secrets untuk jawaban lebih natural!")
     
     # Main Content
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.subheader("📝 Pertanyaan Anda")
+        st.subheader("Pertanyaan Anda")
         query = st.text_area(
             "Masukkan pertanyaan tentang investasi:",
             height=150,
@@ -509,17 +508,17 @@ def main():
         
         col_btn1, col_btn2 = st.columns([3, 1])
         with col_btn1:
-            submit = st.button("🚀 Kirim Pertanyaan", type="primary", use_container_width=True)
+            submit = st.button("Kirim Pertanyaan", type="primary", use_container_width=True)
         with col_btn2:
-            if st.button("🗑️ Hapus", use_container_width=True):
+            if st.button("Hapus", use_container_width=True):
                 st.session_state.query_input = ""
                 st.rerun()
     
     with col2:
-        st.subheader("💡 Jawaban")
+        st.subheader("Jawaban")
         
         if submit and query:
-            with st.spinner('🤔 Sedang menganalisis pertanyaan Anda...'):
+            with st.spinner('Sedang menganalisis pertanyaan Anda...'):
                 answer, sentiment, sent_class, source, similarity = invest_bot_response(
                     query, df, preprocessor, tfidf, X_matrix, sentiment_tool, answer_generator
                 )
@@ -532,21 +531,21 @@ def main():
             col_meta1, col_meta2, col_meta3 = st.columns(3)
             
             with col_meta1:
-                st.markdown(f"**📊 Sentimen:**")
+                st.markdown(f"**Sentimen:**")
                 st.markdown(f'<span class="{sent_class}">{sentiment}</span>', unsafe_allow_html=True)
             
             with col_meta2:
-                st.markdown(f"**📚 Sumber:**")
+                st.markdown(f"**Sumber:**")
                 st.text(source)
             
             with col_meta3:
-                st.markdown(f"**🎯 Relevansi:**")
+                st.markdown(f"**Relevansi:**")
                 st.text(similarity)
         
         elif submit and not query:
-            st.warning("⚠️ Silakan masukkan pertanyaan terlebih dahulu.")
+            st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
         else:
-            st.info("👆 Masukkan pertanyaan dan klik tombol Kirim untuk mendapatkan jawaban.")
+            st.info("Masukkan pertanyaan dan klik tombol Kirim untuk mendapatkan jawaban.")
     
     # Footer
     st.markdown('<div class="footer">UAS Sistem Temu Kembali Informasi 2025/2026 • Universitas Dian Nuswantoro</div>', 
