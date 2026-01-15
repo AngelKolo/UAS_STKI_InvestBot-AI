@@ -1,0 +1,28 @@
+# InvestBot AI - Production Ready
+# Optimized for Gradio Cloud (Hugging Face Spaces)
+
+# Core
+numpy==1.24.3
+pandas==2.0.3
+scipy==1.11.1
+
+# NLP
+nltk==3.8.1
+Sastrawi==1.0.1
+
+# LLM (pilih salah satu sesuai budget)
+## Opsi 1: Model Lokal Ringan (Recommended untuk free tier)
+sentence-transformers==2.2.2
+transformers==4.36.2
+torch==2.1.2
+accelerate==0.25.0
+
+## Opsi 2: Model Berat (butuh GPU)
+# bitsandbytes==0.41.3  # Uncomment jika pakai Mistral-7B
+
+# UI
+gradio==4.13.0
+
+# Optional
+sentencepiece==0.1.99
+protobuf==3.20.3
