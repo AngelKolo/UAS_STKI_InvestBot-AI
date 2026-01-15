@@ -254,9 +254,15 @@ class SmartAnswerGenerator:
         # Preprocess query untuk mendapatkan keywords
         query_tokens = set(self.preprocessor.preprocess(query))
         
+        if not query_tokens:
+            # Fallback jika query kosong setelah preprocessing
+            return ". ".join(sentences[:3]) + "."
+        
         # Score setiap kalimat berdasarkan relevansi dengan query
         scored_sentences = []
         for sent in sentences:
+            if len(sent.strip()) < 20:  # Skip kalimat terlalu pendek
+                continue
             sent_tokens = set(self.preprocessor.preprocess(sent))
             # Hitung overlap antara query dan sentence (Jaccard similarity)
             overlap = len(query_tokens & sent_tokens)
@@ -266,23 +272,26 @@ class SmartAnswerGenerator:
         # Sort by relevance score (descending)
         scored_sentences.sort(key=lambda x: (x[2], x[1]), reverse=True)
         
-        # Ambil top 3-5 kalimat paling relevan
+        # Ambil top 3-4 kalimat paling relevan
         n_sentences = min(4, len(scored_sentences))
-        top_sentences = [s[0] for s in scored_sentences[:n_sentences] if s[1] > 0]
+        top_sentences = []
         
-        # Jika tidak ada yang relevan, ambil awal dokumen
+        for i in range(n_sentences):
+            if i < len(scored_sentences):
+                sent, jaccard, overlap = scored_sentences[i]
+                # Hanya ambil kalimat dengan minimal overlap 1 kata
+                if overlap > 0:
+                    top_sentences.append(sent)
+        
+        # Jika tidak ada yang relevan sama sekali, ambil awal dokumen
         if not top_sentences:
-            top_sentences = sentences[:3]
+            top_sentences = [s for s in sentences[:4] if len(s.strip()) > 20]
         
         # Gabungkan dengan natural flow
         answer = " ".join(top_sentences)
         
-        # Cleanup: hilangkan kalimat yang terlalu pendek (<20 char)
-        final_sentences = [s for s in answer.split('. ') if len(s.strip()) > 20]
-        answer = ". ".join(final_sentences)
-        
         # Pastikan ada titik di akhir
-        if answer and not answer.endswith('.'):
+        if answer and not answer.endswith(('.', '!', '?')):
             answer += '.'
         
         return answer if answer else context[:500] + "..."
@@ -480,6 +489,13 @@ def main():
             with col_meta3:
                 st.markdown(f"**🎯 Relevansi:**")
                 st.text(similarity)
+            
+            # DEBUG INFO (Optional - uncomment untuk debugging)
+            with st.expander("🔍 Debug Info (Untuk Testing)", expanded=False):
+                st.write(f"**Query Tokens:** {preprocessor.preprocess(query)[:10]}")
+                st.write(f"**Document Length:** {len(context)} chars")
+                st.write(f"**Source Category:** {source}")
+                st.write(f"**Answer Length:** {len(answer)} chars")
         
         elif submit and not query:
             st.warning("⚠️ Silakan masukkan pertanyaan terlebih dahulu.")
