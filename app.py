@@ -259,29 +259,55 @@ class ExtractiveSummarizer:
         return " ".join([sentences[i] for i in sorted(top_indices)])
 
 # ================================================================================
-# RULE-BASED ANSWER GENERATOR (FALLBACK - NO LLM NEEDED)
+# SMART ANSWER GENERATOR (QUERY-AWARE)
 # ================================================================================
-class RuleBasedAnswerGenerator:
-    """Generate answers using template-based approach when LLM unavailable"""
+class SmartAnswerGenerator:
+    """Generate query-aware answers using intelligent sentence selection"""
+    
+    def __init__(self):
+        self.preprocessor = TextPreprocessor()
     
     def generate_answer(self, context: str, query: str, category: str) -> str:
-        summarizer = ExtractiveSummarizer()
-        summary = summarizer.summarize(context, n_sentences=3)
+        # Split context into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', context)
+        if len(sentences) == 0:
+            return "Maaf, tidak dapat memproses konteks dokumen."
         
-        # Template berdasarkan kategori
-        templates = {
-            'saham': "Berdasarkan informasi tentang saham, {}",
-            'crypto': "Mengenai cryptocurrency, {}",
-            'emas': "Terkait investasi emas, {}",
-            'reksadana': "Untuk reksa dana, {}",
-            'properti': "Mengenai properti, {}",
-            'default': "Berdasarkan dokumen terkait, {}"
-        }
+        # Preprocess query untuk mendapatkan keywords
+        query_tokens = set(self.preprocessor.preprocess(query))
         
-        template = templates.get(category.lower(), templates['default'])
-        answer = template.format(summary)
+        # Score setiap kalimat berdasarkan relevansi dengan query
+        scored_sentences = []
+        for sent in sentences:
+            sent_tokens = set(self.preprocessor.preprocess(sent))
+            # Hitung overlap antara query dan sentence (Jaccard similarity)
+            overlap = len(query_tokens & sent_tokens)
+            jaccard = overlap / len(query_tokens | sent_tokens) if len(query_tokens | sent_tokens) > 0 else 0
+            scored_sentences.append((sent, jaccard, overlap))
         
-        return answer
+        # Sort by relevance score (descending)
+        scored_sentences.sort(key=lambda x: (x[2], x[1]), reverse=True)
+        
+        # Ambil top 3-5 kalimat paling relevan
+        n_sentences = min(4, len(scored_sentences))
+        top_sentences = [s[0] for s in scored_sentences[:n_sentences] if s[1] > 0]
+        
+        # Jika tidak ada yang relevan, ambil awal dokumen
+        if not top_sentences:
+            top_sentences = sentences[:3]
+        
+        # Gabungkan dengan natural flow
+        answer = " ".join(top_sentences)
+        
+        # Cleanup: hilangkan kalimat yang terlalu pendek (<20 char)
+        final_sentences = [s for s in answer.split('. ') if len(s.strip()) > 20]
+        answer = ". ".join(final_sentences)
+        
+        # Pastikan ada titik di akhir
+        if answer and not answer.endswith('.'):
+            answer += '.'
+        
+        return answer if answer else context[:500] + "..."
 
 # ================================================================================
 # LOAD DATA & INITIALIZE MODELS
