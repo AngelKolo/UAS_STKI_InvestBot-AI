@@ -14,7 +14,6 @@ Sastrawi==1.0.1
 ## Opsi 1: Model Lokal Ringan (Recommended untuk free tier)
 sentence-transformers==2.2.2
 transformers==4.36.2
-torch==2.1.2
 accelerate==0.25.0
 
 ## Opsi 2: Model Berat (butuh GPU)
@@ -25,4 +24,5 @@ gradio==4.13.0
 
 # Optional
 sentencepiece==0.1.99
+
 protobuf==3.20.3
